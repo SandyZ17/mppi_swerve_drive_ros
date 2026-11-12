@@ -1,0 +1,37 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>mppi_bringup</name>
+  <version>0.1.0</version>
+  <description>ROS 2 Humble simulation and Nav2 planning for the MPPI swerve controller.</description>
+  <maintainer email="mizuhoaoki1998@gmail.com">Mizuho Aoki</maintainer>
+  <license>MIT</license>
+  <buildtool_depend>ament_cmake</buildtool_depend>
+  <exec_depend>rclpy</exec_depend>
+  <exec_depend>ament_index_python</exec_depend>
+  <exec_depend>launch</exec_depend>
+  <exec_depend>launch_ros</exec_depend>
+  <exec_depend>geometry_msgs</exec_depend>
+  <exec_depend>nav_msgs</exec_depend>
+  <exec_depend>std_msgs</exec_depend>
+  <exec_depend>nav2_msgs</exec_depend>
+  <exec_depend>nav2_planner</exec_depend>
+  <exec_depend>nav2_navfn_planner</exec_depend>
+  <exec_depend>nav2_map_server</exec_depend>
+  <exec_depend>nav2_lifecycle_manager</exec_depend>
+  <exec_depend>nav2_costmap_2d</exec_depend>
+  <exec_depend>tf2_ros</exec_depend>
+  <exec_depend>rviz2</exec_depend>
+  <exec_depend>world_handler</exec_depend>
+  <exec_depend>groundtruth_odom_publisher</exec_depend>
+  <exec_depend>vel_driver</exec_depend>
+  <exec_depend>joy_controller</exec_depend>
+  <exec_depend>mppi_3d</exec_depend>
+  <exec_depend>mppi_4d</exec_depend>
+  <exec_depend>mppi_h</exec_depend>
+  <exec_depend>reference_costmap_generator</exec_depend>
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+  <exec_depend>action_msgs</exec_depend>
+  <exec_depend>slam_toolbox</exec_depend>
+</package>

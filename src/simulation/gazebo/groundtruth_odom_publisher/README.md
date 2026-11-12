@@ -1,33 +1,10 @@
-# groundtruth_odom_publisher
-This package subscribes /groundtruth_odom topic from the gazebo world and convert it to tf2 message.
+# groundtruth_odom_publisher (ROS 2 Humble)
 
+Subscribes to Gazebo's `/sim/groundtruth_odom`, republishes `/groundtruth_odom`, and broadcasts `odom -> base_link` using the simulator message timestamp. The supplied demo aligns simulator world, map, and odom origins; the republished pose is labeled `map`.
 
-## Subscribing Topics
-
-| Topic name      | Type                 | Description                                                  |
-| --------------- | -------------------- | ------------------------------------------------------------ |
-| /groundtruth_odom | nav_msgs/Odometry | The ground truth odometry data. |
-
-
-## Publishing Topics
-
-| Topic name      | Type              | Description                                                  |
-| --------------- | ----------------- | ------------------------------------------------------------ |
-| /tf | tf2_msgs/TFMessage | The tf data. |
-
-
-## Node Parameters
-| Parameter name               | Type   | Description                                                  |
-| ---------------------------- | ------ | ------------------------------------------------------------ |
-|base_frame| string | The base frame of the tf data. |
-|odom_frame| string | The odom frame of the tf data. |
-|groundtruth_topic| string | The topic name of the ground truth odometry data. |
-
-
-# Usage
-To launch the node individually, run the following commands.
-```
-source devel/setup.bash
-roslaunch groundtruth_odom_publisher groundtruth_odom_publisher.launch
+```bash
+source install/setup.bash
+ros2 launch groundtruth_odom_publisher groundtruth_odom_publisher.launch.py use_sim_time:=true
 ```
 
+This is a simulation adapter. A real localization system must supply map-frame poses and a consistent TF tree. The navigation launch adds an identity `map -> odom`; the SLAM launch lets SLAM Toolbox provide that transform.

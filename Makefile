@@ -1,67 +1,42 @@
-# Usage: make [command]
-SHELL:=/bin/bash
-WORKSPACE=$(shell pwd)
+SHELL := /bin/bash
+export LOCAL_UID := $(shell id -u)
+export LOCAL_GID := $(shell id -g)
+DOCKER_COMPOSE ?= docker compose
+PLANNER ?= mppi_h
+WORLD ?= maze
+GUI ?= true
+RVIZ ?= true
+JOBS ?= 2
+RUN = $(DOCKER_COMPOSE) run --rm dev
 
-.PHONY: build # to avoid error
-
-build:
-	source /opt/ros/noetic/setup.bash &&\
-	export CC=clang-11 && export CXX=clang++-11 &&\
-	catkin build --cmake-args -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_FLAGS="-O2"
-
-clean:
-	rm -r build devel logs .catkin_tools
-
-install_deps: # install packages which are not supported by rosdep
-	apt update && apt install -y \
-	psmisc clang-11
+.PHONY: setup_docker run_docker build local_build navigation gazebo_world test smoke_test slam clean
 
 setup_docker:
-	docker build -t noetic_image:latest -f docker/Dockerfile . --no-cache
-
-exec_docker:
-	docker exec -it noetic_container /bin/bash
-
-run_rocker:
-	rocker --x11 --user --network host --privileged --nocleanup --volume .:/home/$(shell whoami)/mppi_swerve_drive_ros --name noetic_container noetic_image:latest
+	$(DOCKER_COMPOSE) build dev
 
 run_docker:
-	@if [ "$(shell docker inspect --format='{{.State.Status}}' noetic_container)" = "running" ]; then \
-		$(MAKE) exec_docker; \
-	elif [ "$(shell docker inspect --format='{{.State.Status}}' noetic_container)" = "exited" ]; then \
-		docker start noetic_container; \
-		if [$? -eq 0]; then \
-			$(MAKE) exec_docker; \
-		else \
-			docker rm noetic_container; \
-			$(MAKE) run_rocker; \
-		fi; \
-	else \
-		$(MAKE) run_rocker; \
-	fi
+	$(RUN) bash
 
-# record rosbag (all topics)
-record:
-	cd ${WORKSPACE}/rosbag; rosbag record -a
+build:
+	$(RUN) bash -c 'MAKEFLAGS=-j$(JOBS) colcon build --symlink-install --parallel-workers $(JOBS) --cmake-args -DCMAKE_BUILD_TYPE=Release'
 
-# play rosbag
-## [shell 1] make play
-## [shell 2] rosbag play rosbag/xxx.bag
-play:
-	source /opt/ros/noetic/setup.bash && source ./devel/setup.bash &&\
-	roslaunch launch/rosbag_play.launch workspace:=${WORKSPACE}
+local_build:
+	source /opt/ros/humble/setup.bash && colcon build --symlink-install --parallel-workers $(JOBS) --cmake-args -DCMAKE_BUILD_TYPE=Release
 
-# gazebo_world.launch
-gazebo_world:
-	source /opt/ros/noetic/setup.bash && source ./devel/setup.bash &&\
-	roslaunch launch/gazebo_world.launch
-
-# gmapping.launch
-gmapping:
-	source /opt/ros/noetic/setup.bash && source ./devel/setup.bash &&\
-	roslaunch launch/gmapping.launch workspace:=${WORKSPACE}
-
-# navigation.launch
 navigation:
-	source /opt/ros/noetic/setup.bash && source ./devel/setup.bash &&\
-	roslaunch launch/navigation.launch workspace:=${WORKSPACE}
+	$(RUN) ros2 launch mppi_bringup navigation.launch.py local_planner:=$(PLANNER) gazebo_world_name:=$(WORLD) gui:=$(GUI) open_rviz:=$(RVIZ)
+
+gazebo_world:
+	$(RUN) ros2 launch mppi_bringup gazebo_world.launch.py gazebo_world_name:=$(WORLD) gui:=$(GUI)
+
+slam:
+	$(RUN) ros2 launch mppi_bringup slam.launch.py gazebo_world_name:=$(WORLD) gui:=$(GUI)
+
+smoke_test:
+	$(RUN) python3 scripts/smoke_test_ros2.py --require-goal
+
+test:
+	$(RUN) python3 -m pytest -q tests
+
+clean:
+	rm -rf build install log

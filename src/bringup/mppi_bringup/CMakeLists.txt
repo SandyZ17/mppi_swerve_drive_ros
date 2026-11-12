@@ -1,0 +1,7 @@
+cmake_minimum_required(VERSION 3.16)
+project(mppi_bringup)
+find_package(ament_cmake REQUIRED)
+install(DIRECTORY launch config rviz DESTINATION share/${PROJECT_NAME})
+install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/../../../data/map DESTINATION share/${PROJECT_NAME})
+install(PROGRAMS scripts/planner_bridge.py DESTINATION lib/${PROJECT_NAME})
+ament_package()

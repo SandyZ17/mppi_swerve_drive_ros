@@ -3,30 +3,30 @@
 namespace planning
 {
     ReferenceCostmapGenerator::ReferenceCostmapGenerator()
-        : nh_(""), private_nh_("~")
+        : rclcpp::Node("reference_costmap_generator")
     {
         // load parameters 
-        private_nh_.param<double>("map_resolution_scale", map_resolution_scale_, 1.0);
+        map_resolution_scale_ = this->declare_parameter<double>("map_resolution_scale", 1.0);
 
         //// subscribing topic names
         std::string ref_path_topic, map_topic;
-        private_nh_.param<std::string>("ref_path_topic", ref_path_topic, "/move_base/NavfnROS/plan");
-        private_nh_.param<std::string>("map_topic", map_topic, "/map");
+        ref_path_topic = this->declare_parameter<std::string>("ref_path_topic", "/reference_path");
+        map_topic = this->declare_parameter<std::string>("map_topic", "/map");
 
         //// publishing topic names
         std::string goal_pose_marker_topic, distance_error_map_topic, ref_yaw_map_topic;
-        private_nh_.param<std::string>("goal_pose_marker_topic", goal_pose_marker_topic, "/goal_pose_marker");
-        private_nh_.param<std::string>("distance_error_map_topic", distance_error_map_topic, "/distance_error_map");
-        private_nh_.param<std::string>("ref_yaw_map_topic", ref_yaw_map_topic, "/ref_yaw_map");
+        goal_pose_marker_topic = this->declare_parameter<std::string>("goal_pose_marker_topic", "/goal_pose_marker");
+        distance_error_map_topic = this->declare_parameter<std::string>("distance_error_map_topic", "/distance_error_map");
+        ref_yaw_map_topic = this->declare_parameter<std::string>("ref_yaw_map_topic", "/ref_yaw_map");
 
         // initialize subscribers
-        sub_ref_path_ = nh_.subscribe(ref_path_topic, 1, &ReferenceCostmapGenerator::refPathCallback, this);
-        sub_map_ = nh_.subscribe(map_topic, 1, &ReferenceCostmapGenerator::mapCallback, this);
+        sub_ref_path_ = this->create_subscription<nav_msgs::msg::Path>(ref_path_topic, rclcpp::QoS(1), std::bind(&ReferenceCostmapGenerator::refPathCallback, this, std::placeholders::_1));
+        sub_map_ = this->create_subscription<nav_msgs::msg::OccupancyGrid>(map_topic, rclcpp::QoS(1).transient_local(), std::bind(&ReferenceCostmapGenerator::mapCallback, this, std::placeholders::_1));
 
         // initialize publishers
-        pub_goal_pose_marker_ = nh_.advertise<visualization_msgs::Marker>(goal_pose_marker_topic, 10);
-        pub_distance_error_map_ = nh_.advertise<grid_map_msgs::GridMap>(distance_error_map_topic, 10);
-        pub_ref_yaw_map_ = nh_.advertise<grid_map_msgs::GridMap>(ref_yaw_map_topic, 10);
+        pub_goal_pose_marker_ = this->create_publisher<visualization_msgs::msg::Marker>(goal_pose_marker_topic, rclcpp::QoS(10));
+        pub_distance_error_map_ = this->create_publisher<grid_map_msgs::msg::GridMap>(distance_error_map_topic, rclcpp::QoS(1).transient_local());
+        pub_ref_yaw_map_ = this->create_publisher<grid_map_msgs::msg::GridMap>(ref_yaw_map_topic, rclcpp::QoS(1).transient_local());
     }
 
     ReferenceCostmapGenerator::~ReferenceCostmapGenerator()
@@ -34,11 +34,12 @@ namespace planning
         // No Contents
     }
 
-    void ReferenceCostmapGenerator::refPathCallback(const nav_msgs::Path::ConstPtr& msg)
+    void ReferenceCostmapGenerator::refPathCallback(const nav_msgs::msg::Path::ConstSharedPtr& msg)
     {
+        if (msg->poses.empty()) { return; }
         ref_path_received_ = true;
 
-        // save the latest reference path as nav_msgs::Path type
+        // save the latest reference path as nav_msgs::msg::Path type
         latest_ref_path_ = *msg;
 
         // publish goal pose marker
@@ -47,7 +48,7 @@ namespace planning
 
         if (!map_received_ || !ref_path_received_)
         {
-            ROS_WARN("[ReferenceCostmapGenerator] not all necessary data are received, map: %d, ref_path: %d", map_received_, ref_path_received_);
+            RCLCPP_WARN(this->get_logger(), "[ReferenceCostmapGenerator] not all necessary data are received, map: %d, ref_path: %d", map_received_, ref_path_received_);
             return;
         }
 
@@ -58,7 +59,7 @@ namespace planning
         publishReferenceYawMap();
     }
 
-    void ReferenceCostmapGenerator::mapCallback(const nav_msgs::OccupancyGrid::ConstPtr& msg)
+    void ReferenceCostmapGenerator::mapCallback(const nav_msgs::msg::OccupancyGrid::ConstSharedPtr& msg)
     {
         map_received_ = true;
 
@@ -77,13 +78,13 @@ namespace planning
         double arrow_color[4] = {0.0, 0.0, 1.0, 1.0};
 
         // publish goal pose marker
-        visualization_msgs::Marker goal_pose_marker;
+        visualization_msgs::msg::Marker goal_pose_marker;
         goal_pose_marker.header.frame_id = "map";
-        goal_pose_marker.header.stamp = ros::Time::now();
+        goal_pose_marker.header.stamp = this->now();
         goal_pose_marker.ns = "goal_pose";
         goal_pose_marker.id = 0;
-        goal_pose_marker.type = visualization_msgs::Marker::ARROW;
-        goal_pose_marker.action = visualization_msgs::Marker::ADD;
+        goal_pose_marker.type = visualization_msgs::msg::Marker::ARROW;
+        goal_pose_marker.action = visualization_msgs::msg::Marker::ADD;
         goal_pose_marker.pose.position.x = latest_ref_path_.poses.back().pose.position.x;
         goal_pose_marker.pose.position.y = latest_ref_path_.poses.back().pose.position.y;
         goal_pose_marker.pose.position.z = MARKER_POS_Z;
@@ -95,7 +96,7 @@ namespace planning
         goal_pose_marker.color.g = arrow_color[1];
         goal_pose_marker.color.b = arrow_color[2];
         goal_pose_marker.color.a = arrow_color[3];
-        pub_goal_pose_marker_.publish(goal_pose_marker);
+        pub_goal_pose_marker_->publish(goal_pose_marker);
     }
 
     void ReferenceCostmapGenerator::publishGoalPoseSphereMarker()
@@ -108,13 +109,13 @@ namespace planning
         double sphere_color[4] = {0.0, 0.0, 1.0, 1.0};
 
         // publish goal pose marker
-        visualization_msgs::Marker goal_pose_marker;
+        visualization_msgs::msg::Marker goal_pose_marker;
         goal_pose_marker.header.frame_id = "map";
-        goal_pose_marker.header.stamp = ros::Time::now();
+        goal_pose_marker.header.stamp = this->now();
         goal_pose_marker.ns = "goal_pose";
         goal_pose_marker.id = 0;
-        goal_pose_marker.type = visualization_msgs::Marker::SPHERE;
-        goal_pose_marker.action = visualization_msgs::Marker::ADD;
+        goal_pose_marker.type = visualization_msgs::msg::Marker::SPHERE;
+        goal_pose_marker.action = visualization_msgs::msg::Marker::ADD;
         goal_pose_marker.pose.position.x = latest_ref_path_.poses.back().pose.position.x;
         goal_pose_marker.pose.position.y = latest_ref_path_.poses.back().pose.position.y;
         goal_pose_marker.pose.position.z = MARKER_POS_Z;
@@ -126,7 +127,7 @@ namespace planning
         goal_pose_marker.color.g = sphere_color[1];
         goal_pose_marker.color.b = sphere_color[2];
         goal_pose_marker.color.a = sphere_color[3];
-        pub_goal_pose_marker_.publish(goal_pose_marker);
+        pub_goal_pose_marker_->publish(goal_pose_marker);
     }
 
     void ReferenceCostmapGenerator::publishDistanceErrorMap()
@@ -134,9 +135,9 @@ namespace planning
         // generate distance error map
         grid_map::GridMap distance_error_map_({"distance_error"});
         distance_error_map_.setFrameId(latest_map_.getFrameId()); // usually "map"
-        distance_error_map_.setGeometry(latest_map_.getLength(), latest_map_.getResolution() * map_resolution_scale_);
-        ros::Time time = ros::Time::now();
-        distance_error_map_.setTimestamp(time.toNSec());
+        distance_error_map_.setGeometry(latest_map_.getLength(), latest_map_.getResolution() * map_resolution_scale_, latest_map_.getPosition());
+        rclcpp::Time time = this->now();
+        distance_error_map_.setTimestamp(time.nanoseconds());
 
         // for each cell in the map, calculate the distance to the nearest point in the reference path
         const auto grid_size = distance_error_map_.getSize();
@@ -176,9 +177,8 @@ namespace planning
         }
 
         // publish distance error map
-        grid_map_msgs::GridMap msg;
-        grid_map::GridMapRosConverter::toMessage(distance_error_map_, msg);
-        pub_distance_error_map_.publish(msg);
+        auto msg = grid_map::GridMapRosConverter::toMessage(distance_error_map_);
+        pub_distance_error_map_->publish(std::move(msg));
     }
 
     void ReferenceCostmapGenerator::publishReferenceYawMap()
@@ -186,9 +186,9 @@ namespace planning
         // generate reference yaw map from the reference path, yaw range is [0, 2*pi]
         grid_map::GridMap ref_yaw_map_({"ref_yaw"});
         ref_yaw_map_.setFrameId(latest_map_.getFrameId()); // usually "map"
-        ref_yaw_map_.setGeometry(latest_map_.getLength(), latest_map_.getResolution() * map_resolution_scale_);
-        ros::Time time = ros::Time::now();
-        ref_yaw_map_.setTimestamp(time.toNSec());
+        ref_yaw_map_.setGeometry(latest_map_.getLength(), latest_map_.getResolution() * map_resolution_scale_, latest_map_.getPosition());
+        rclcpp::Time time = this->now();
+        ref_yaw_map_.setTimestamp(time.nanoseconds());
 
         // for each cell in the map, calculate the yaw angle of the nearest point in the reference path
         const auto grid_size = ref_yaw_map_.getSize();
@@ -236,9 +236,8 @@ namespace planning
         }
 
         // publish reference yaw map
-        grid_map_msgs::GridMap msg;
-        grid_map::GridMapRosConverter::toMessage(ref_yaw_map_, msg);
-        pub_ref_yaw_map_.publish(msg);
+        auto msg = grid_map::GridMapRosConverter::toMessage(ref_yaw_map_);
+        pub_ref_yaw_map_->publish(std::move(msg));
     }
 
 

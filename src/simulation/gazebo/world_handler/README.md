@@ -1,53 +1,12 @@
-# world_handler
-This package makes gazebo world and spawn a 4WIDS vehicle.
+# world_handler (ROS 2 Humble)
 
+Installs the vehicle xacro, self-contained Gazebo Classic worlds, ros2_control settings, and the simulator launch file. Process shutdown is handled by ROS 2 launch.
 
-## Subscribing Topics
-
-| Topic name      | Type                 | Description                                                  |
-| --------------- | -------------------- | ------------------------------------------------------------ |
-| /fwids/front_left_steer_rad/command | std_msgs/Float64 | The target steering angle [rad] of the front left wheel. |
-| /fwids/front_left_rotor_radpersec/command | std_msgs/Float64 | The target rotor speed [rad/s] of the front left wheel. |
-| /fwids/front_right_steer_rad/command | std_msgs/Float64 | The target steering angle [rad] of the front right wheel. |
-| /fwids/front_right_rotor_radpersec/command | std_msgs/Float64 | The target rotor speed [rad/s] of the front right wheel. |
-| /fwids/rear_left_steer_rad/command | std_msgs/Float64 | The target steering angle [rad] of the rear left wheel. |
-| /fwids/rear_left_rotor_radpersec/command | std_msgs/Float64 | The target rotor speed [rad/s] of the rear left wheel. |
-| /fwids/rear_right_steer_rad/command | std_msgs/Float64 | The target steering angle [rad] of the rear right wheel. |
-| /fwids/rear_right_rotor_radpersec/command | std_msgs/Float64 | The target rotor speed [rad/s] of the rear right wheel. |
-
-
-## Publishing Topics
-
-| Topic name      | Type              | Description                                                  |
-| --------------- | ----------------- | ------------------------------------------------------------ |
-| /laser_link/scan | sensor_msgs/LaserScan | The laser scan data. (2D point cloud) |
-| /groundtruth_odom | nav_msgs/Odometry | The ground truth odometry data. |
-| /fwids/joint_states | sensor_msgs/JointState | The joint state data. |
-
-
-## Node Parameters
-| Parameter name               | Type   | Description                                                  |
-| ---------------------------- | ------ | ------------------------------------------------------------ |
-| /fwids/joint_state_controller/publish_rate | double | The rate [Hz] at which to publish the joint state. |
-
-
-## Usage
-To launch the gazebo world individually, run the following commands.
-```
-source devel/setup.bash
-roslaunch world_handler launch_gazebo_world_with_fwids.launch
+```bash
+source install/setup.bash
+ros2 launch world_handler gazebo_world.launch.py gazebo_world_name:=maze gui:=true
 ```
 
-Press Ctrl+C to shut down the gazebo world.
+For odometry, wheel-command conversion, and optional joystick control, use `ros2 launch mppi_bringup gazebo_world.launch.py` instead. Worlds: `empty`, `maze`, `empty_garden`, `cylinder_garden`.
 
-
-## Note
-You can ignore the following error message when you run the gazebo world.
-It means that PID controllers are not used in the simulation, and it is true in this system.
-
-In current settings, if you specify a target value of steering angle [rad] or rotor speed [rad/s] through ros_control, 
-joints in gazebo will follow the value without any delay.
-```
-[ERROR] [xxxxx]: No p gain specified for pid. xxxxx
-```
-
+The `gazebo_ros2_control` plugin runs `/fwids/controller_manager` with `joint_state_broadcaster`, `steering_controller`, and `wheel_controller`. The two command topics accept `std_msgs/msg/Float64MultiArray`; joint order is front-left, front-right, rear-left, rear-right. The laser publishes `/laser_link/scan`; the P3D plugin publishes world-frame `/sim/groundtruth_odom`.

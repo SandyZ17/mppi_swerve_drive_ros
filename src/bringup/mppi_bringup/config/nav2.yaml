@@ -1,0 +1,47 @@
+map_server:
+  ros__parameters:
+    use_sim_time: true
+    topic_name: map
+    frame_id: map
+planner_server:
+  ros__parameters:
+    use_sim_time: true
+    expected_planner_frequency: 0.5
+    planner_plugins: [GridBased]
+    GridBased:
+      plugin: nav2_navfn_planner/NavfnPlanner
+      tolerance: 0.5
+      use_astar: false
+      allow_unknown: false
+global_costmap:
+  global_costmap:
+    ros__parameters:
+      use_sim_time: true
+      global_frame: map
+      robot_base_frame: base_link
+      transform_tolerance: 0.5
+      update_frequency: 5.0
+      publish_frequency: 5.0
+      resolution: 0.1
+      robot_radius: 0.8
+      track_unknown_space: true
+      always_send_full_costmap: true
+      plugins: [static_layer, obstacle_layer, inflation_layer]
+      static_layer:
+        plugin: nav2_costmap_2d::StaticLayer
+        map_subscribe_transient_local: true
+      obstacle_layer:
+        plugin: nav2_costmap_2d::ObstacleLayer
+        observation_sources: scan
+        scan:
+          topic: /laser_link/scan
+          data_type: LaserScan
+          marking: true
+          clearing: true
+          max_obstacle_height: 2.0
+          obstacle_max_range: 20.0
+          raytrace_max_range: 25.0
+      inflation_layer:
+        plugin: nav2_costmap_2d::InflationLayer
+        cost_scaling_factor: 3.0
+        inflation_radius: 1.2

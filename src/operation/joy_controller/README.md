@@ -6,14 +6,14 @@ This node receives the joypad input and publishes twist message to operate the v
 
 | Topic name      | Type                 | Description                                                  |
 | --------------- | -------------------- | ------------------------------------------------------------ |
-| /joy            | sensor_msgs/Joy      | The joystick message. |
+| /joy            | sensor_msgs/msg/Joy      | The joystick message. |
 
 
 ## Publishing Topics
 
 | Topic name      | Type              | Description                                                  |
 | --------------- | ----------------- | ------------------------------------------------------------ |
-| /cmd_vel        | geometry_msgs/Twist | The velocity command. |
+| /cmd_vel        | geometry_msgs/msg/Twist | The velocity command. |
 
 
 ## Node Parameters
@@ -36,7 +36,7 @@ This node receives the joypad input and publishes twist message to operate the v
 ## Usage
 To launch the node individually, run the following commands.
 ```
-source devel/setup.bash
-roslaunch joy_controller joy_controller.launch
+source install/setup.bash
+ros2 launch joy_controller joy_controller.launch.py
 ```
 

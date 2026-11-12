@@ -5,20 +5,22 @@ namespace gazebo
 
 // constructor
 GroundTruthOdomPublisher::GroundTruthOdomPublisher()
-    : nh_(""), private_nh_("~")
+    : rclcpp::Node("groundtruth_odom_publisher")
 {
+    tf_broadcaster_ = std::make_unique<tf2_ros::TransformBroadcaster>(*this);
     // load parameters 
 
     //// frame names
-    private_nh_.param<std::string>("base_frame", base_frame_name, "base_link");
-    private_nh_.param<std::string>("odom_frame", odom_frame_name, "odom");
+    base_frame_name = this->declare_parameter<std::string>("base_frame", "base_link");
+    odom_frame_name = this->declare_parameter<std::string>("odom_frame", "odom");
 
     //// subscribing topic names
     std::string groundtruth_odom_topic;
-    private_nh_.param<std::string>("groundtruth_odom_topic", groundtruth_odom_topic, "/groundtruth_odom");
+    groundtruth_odom_topic = this->declare_parameter<std::string>("groundtruth_odom_topic", "/sim/groundtruth_odom");
 
+    pub_odom_ = create_publisher<nav_msgs::msg::Odometry>("/groundtruth_odom", 10);
     // initialize subscribers
-    sub_groundtruth_odom_ = nh_.subscribe(groundtruth_odom_topic, 1, &GroundTruthOdomPublisher::groundTruthOdomCallback, this);
+    sub_groundtruth_odom_ = this->create_subscription<nav_msgs::msg::Odometry>(groundtruth_odom_topic, rclcpp::SensorDataQoS(), std::bind(&GroundTruthOdomPublisher::groundTruthOdomCallback, this, std::placeholders::_1));
 }
 
 // destructor
@@ -28,10 +30,15 @@ GroundTruthOdomPublisher::~GroundTruthOdomPublisher()
 }
 
 // /odom topic callback
-void GroundTruthOdomPublisher::groundTruthOdomCallback(const nav_msgs::Odometry::ConstPtr& msg)
+void GroundTruthOdomPublisher::groundTruthOdomCallback(const nav_msgs::msg::Odometry::ConstSharedPtr& msg)
 {
+    nav_msgs::msg::Odometry odom = *msg;
+    // Demo convention: simulator world, map, and odom have the same origin.
+    odom.header.frame_id = "map";
+    odom.child_frame_id = base_frame_name;
+    pub_odom_->publish(odom);
     // get current time
-    ros::Time time_now_ = ros::Time::now();
+    rclcpp::Time time_now_(msg->header.stamp, this->get_clock()->get_clock_type());
 
     // publish tf (avoiding publishing tf with same timestamp repeatedly)
     if(prev_tf_timestamp_ != time_now_)
@@ -50,7 +57,7 @@ void GroundTruthOdomPublisher::groundTruthOdomCallback(const nav_msgs::Odometry:
         odom_tf_.transform.rotation.y = msg->pose.pose.orientation.y;
         odom_tf_.transform.rotation.z = msg->pose.pose.orientation.z;
         odom_tf_.transform.rotation.w = msg->pose.pose.orientation.w;
-        tf_broadcaster_.sendTransform(odom_tf_);
+        tf_broadcaster_->sendTransform(odom_tf_);
     }
 }
 

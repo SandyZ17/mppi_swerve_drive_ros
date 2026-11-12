@@ -4,6 +4,7 @@
 <!-- Reference : https://qiita.com/Yuya-Shimizu/items/4bc097eafb870ba78432 -->
 <robot xmlns:xacro="http://ros.org/wiki/xacro" name="four_wheel_independent_drive_and_steering_vehicle">
 
+    <xacro:arg name="controllers_file" default="$(find world_handler)/config/fwids_controller.yaml"/>
     <!-- # set parameters -->
     <xacro:property name="body_mass" value="50.0" />
     <xacro:property name="body_thickness" value="0.05" />
@@ -16,6 +17,18 @@
     <xacro:property name="d_r" value="0.5" />
 
     <!-- # define macros -->
+    <xacro:macro name="control_wheel" params="name">
+      <joint name="${name}_wheel_steer_joint">
+        <command_interface name="position"/>
+        <state_interface name="position"/>
+        <state_interface name="velocity"/>
+      </joint>
+      <joint name="${name}_wheel_rotor_joint">
+        <command_interface name="velocity"/>
+        <state_interface name="position"/>
+        <state_interface name="velocity"/>
+      </joint>
+    </xacro:macro>
 
     <!-- ## define material colors for URDF -->
     <material name="black">  <color rgba="0.2 0.2 0.2 1.0"/> </material>
@@ -84,17 +97,6 @@
         <child link="${child}"/>
         <xacro:insert_block name="axis" />
         </joint>
-
-        <transmission name="${name}_trans">
-        <type>transmission_interface/SimpleTransmission</type>
-        <joint name="${name}_joint">
-            <hardwareInterface>hardware_interface/PositionJointInterface</hardwareInterface>
-        </joint>
-        <actuator name="${name}_motor">
-            <hardwareInterface>hardware_interface/PositionJointInterface</hardwareInterface>
-            <mechanicalReduction>1</mechanicalReduction>
-        </actuator>
-        </transmission>
     </xacro:macro>
 
     <xacro:macro name="rotor_joint" params="name parent child *origin *axis">
@@ -105,17 +107,6 @@
         <xacro:insert_block name="axis" />
         <dynamics damping="0.1"/>
         </joint>
-
-        <transmission name="${name}_trans">
-        <type>transmission_interface/SimpleTransmission</type>
-        <joint name="${name}_joint">
-            <hardwareInterface>hardware_interface/VelocityJointInterface</hardwareInterface>
-        </joint>
-        <actuator name="${name}_motor">
-            <hardwareInterface>hardware_interface/VelocityJointInterface</hardwareInterface>
-            <mechanicalReduction>1</mechanicalReduction>
-        </actuator>
-        </transmission>
     </xacro:macro>
 
     <xacro:macro name="sus_joint" params="name parent child *origin *axis">
@@ -127,16 +118,6 @@
         <xacro:insert_block name="axis" />
         <dynamics damping="0.1"/>
         </joint>
-        <transmission name="${name}_trans">
-        <type>transmission_interface/SimpleTransmission</type>
-        <joint name="${name}_joint">
-            <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
-        </joint>
-        <actuator name="${name}_motor">
-            <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
-            <mechanismReduction>1</mechanismReduction>
-        </actuator>
-        </transmission>
         <gazebo reference="${name}_joint">
         <kp>50000</kp>
         <kd>500</kd>
@@ -244,8 +225,11 @@
 
     <!-- ## import plugin "gazebo_ros_control" -->
     <gazebo>
-        <plugin name="gazebo_ros_control" filename="libgazebo_ros_control.so">
-        <robotNamespace>/fwids</robotNamespace>
+        <plugin name="gazebo_ros2_control" filename="libgazebo_ros2_control.so">
+          <ros><namespace>/fwids</namespace></ros>
+          <robot_param>robot_description</robot_param>
+          <robot_param_node>/robot_state_publisher</robot_param_node>
+          <parameters>$(arg controllers_file)</parameters>
         </plugin>
     </gazebo>
 
@@ -276,9 +260,10 @@
             <stddev>0.01</stddev>
           </noise>
         </ray>
-        <plugin name="gazebo_ros_lidar_controller" filename="libgazebo_ros_laser.so">
-          <topicName>/laser_link/scan</topicName>
-          <frameName>laser_link</frameName>
+        <plugin name="gazebo_ros_lidar_controller" filename="libgazebo_ros_ray_sensor.so">
+          <ros><remapping>~/out:=/laser_link/scan</remapping></ros>
+          <output_type>sensor_msgs/LaserScan</output_type>
+          <frame_name>laser_link</frame_name>
         </plugin>
       </sensor>
     </gazebo>
@@ -286,15 +271,19 @@
     <!-- ## publish true odometry value -->
     <gazebo>
       <plugin name="groundtruth" filename="libgazebo_ros_p3d.so">
-          <alwaysOn>true</alwaysOn>
-          <updateRate>50.0</updateRate>
-          <bodyName>base_link</bodyName>
-          <topicName>groundtruth_odom</topicName>
-          <frameName>map</frameName>
-          <xyzOffsets>0 0 0</xyzOffsets>
-          <rpyOffsets>0 0 0</rpyOffsets>
-          <gaussianNoise>0.02</gaussianNoise>
-      </plugin>
+          <ros><remapping>odom:=/sim/groundtruth_odom</remapping></ros>
+          <update_rate>50.0</update_rate>
+          <body_name>base_link</body_name>
+          <frame_name>world</frame_name>
+          <gaussian_noise>0.0</gaussian_noise>
+        </plugin>
     </gazebo>
 
+    <ros2_control name="GazeboSystem" type="system">
+      <hardware><plugin>gazebo_ros2_control/GazeboSystem</plugin></hardware>
+      <xacro:control_wheel name="front_left"/>
+      <xacro:control_wheel name="front_right"/>
+      <xacro:control_wheel name="rear_left"/>
+      <xacro:control_wheel name="rear_right"/>
+    </ros2_control>
 </robot>

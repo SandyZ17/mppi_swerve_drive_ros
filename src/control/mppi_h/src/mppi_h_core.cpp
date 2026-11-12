@@ -18,19 +18,26 @@ MPPIHybridCore::MPPIHybridCore(std::tuple<param::CommonParam, param::MPPI3DParam
         new controller_mppi_4d::MPPI4DCore(
             std::get<param::CommonParam>(param_tuple_), // common param
             std::get<param::MPPI4DParam>(param_tuple_)  // mode 2 param
-        )    
+        )
     );
 }
 
 // destructor
 MPPIHybridCore::~MPPIHybridCore()
 {
-    // No Contents
+    delete std::get<controller_mppi_3d::MPPI3DCore*>(mppi_core_tuple_);
+    delete std::get<controller_mppi_4d::MPPI4DCore*>(mppi_core_tuple_);
 }
 
 // mode selector
 int MPPIHybridCore::selectMode(const common_type::XYYaw& current_state, const grid_map::GridMap& distance_error_map, const grid_map::GridMap& ref_yaw_map)
 {
+    if (!distance_error_map.isInside(grid_map::Position(current_state.x, current_state.y)) ||
+        !ref_yaw_map.isInside(grid_map::Position(current_state.x, current_state.y)))
+    {
+        current_mode_idx_ = MODE_IDX_MPPI_4D;
+        return current_mode_idx_;
+    }
     // get tracking error in distance
     double dist_error = distance_error_map.atPosition("distance_error", grid_map::Position(current_state.x, current_state.y), grid_map::InterpolationMethods::INTER_LINEAR);
 
@@ -42,7 +49,7 @@ int MPPIHybridCore::selectMode(const common_type::XYYaw& current_state, const gr
     if
     (
         dist_error < std::get<param::CommonParam>(param_tuple_).mode_selector.dist_error_threshold &&
-        std::abs(yaw_error) < std::get<param::CommonParam>(param_tuple_).mode_selector.yaw_error_threshold 
+        std::abs(yaw_error) < std::get<param::CommonParam>(param_tuple_).mode_selector.yaw_error_threshold
     )
     {
         // when tracking error is small, select mode 1 (MPPI_3D)
@@ -72,7 +79,7 @@ common_type::VxVyOmega MPPIHybridCore::solveMPPI(
     if (mode == MODE_IDX_MPPI_3D)
     {
         // [mode 1] MPPI_3D
-        common_type::VxVyOmega optimal_vxvyw_cmd_mppi_3d = 
+        common_type::VxVyOmega optimal_vxvyw_cmd_mppi_3d =
             std::get<controller_mppi_3d::MPPI3DCore*>(mppi_core_tuple_)->solveMPPI(
                 observed_state,
                 collision_costmap,

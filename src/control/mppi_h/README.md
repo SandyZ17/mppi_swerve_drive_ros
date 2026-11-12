@@ -7,87 +7,89 @@ MPPI-H switches between MPPI-3D and MPPI-4D controllers depending on the situati
 
 | Topic name      | Type                 | Description                                                  |
 | --------------- | -------------------- | ------------------------------------------------------------ |
-| /groundtruth_odom | nav_msgs/Odometry | The ground truth odometry data. |
-| /move_base/NavfnROS/plan | nav_msgs/Path | The global path data. |
-| /move_base/local_costmap/costmap | nav_msgs/OccupancyGrid | The local costmap data. |
-| /distance_error_map | grid_map_msgs/GridMap | The distance error map data. |
-| /ref_yaw_map | grid_map_msgs/GridMap | The reference yaw map data. |
+| /groundtruth_odom | nav_msgs/msg/Odometry | The ground truth odometry data. |
+| /reference_path | nav_msgs/msg/Path | The global path data. |
+| /global_costmap/costmap | nav_msgs/msg/OccupancyGrid | The local costmap data. |
+| /distance_error_map | grid_map_msgs/msg/GridMap | The distance error map data. |
+| /ref_yaw_map | grid_map_msgs/msg/GridMap | The reference yaw map data. |
 
 ## Publishing Topics
 
 | Topic name      | Type              | Description                                                  |
 | --------------- | ----------------- | ------------------------------------------------------------ |
-| /cmd_vel | geometry_msgs/Twist | The velocity command consisting of linear and angular velocities (vx, vy, omega). |
-| /mppi/cmd/absvel | geometry_msgs/Twist | The absolute velocity command. i.e. absvel = sqrt(vx^2 + vy^2). |
-| /mppi/cmd/vx | std_msgs/Float32 | The linear velocity command. The front direction of the vehicle is positive. |
-| /mppi/cmd/vy | std_msgs/Float32 | The lateral velocity command. The left direction of the vehicle is positive. |
-| /mppi/cmd/omega | std_msgs/Float32 | The angular velocity command. The counter-clockwise direction is positive. |
-| /mppi/calc_time | std_msgs/Float32 | The calculation time of the MPPI controller. |
-| /mppi/overlay_text | std_msgs/String | The overlay text to show mppi name on rviz.|
-| /mppi/optimal_traj | visualization_msgs/MarkerArray | The optimal trajectory for visualization. |
-| /mppi/sampled_traj | visualization_msgs/MarkerArray | The sampled trajectory for visualization. |
-| /mppi/eval_info | mppi_eval_msgs/MPPIEval | The evaluation information of the MPPI controller. |
+| /cmd_vel | geometry_msgs/msg/Twist | The velocity command consisting of linear and angular velocities (vx, vy, omega). |
+| `cmd.absvel` | std_msgs/msg/Float32 | The absolute velocity command. i.e. absvel = sqrt(vx^2 + vy^2). |
+| `cmd.vx` | std_msgs/msg/Float32 | The linear velocity command. The front direction of the vehicle is positive. |
+| `cmd.vy` | std_msgs/msg/Float32 | The lateral velocity command. The left direction of the vehicle is positive. |
+| `cmd.omega` | std_msgs/msg/Float32 | The angular velocity command. The counter-clockwise direction is positive. |
+| `calc_time` | std_msgs/msg/Float32 | The calculation time of the MPPI controller. |
+| `overlay_text` | std_msgs/msg/String | The controller name as a plain String (the ROS 1 JSK overlay plugin is not used).|
+| `optimal_traj` | visualization_msgs/msg/MarkerArray | The optimal trajectory for visualization. |
+| `sampled_traj` | visualization_msgs/msg/MarkerArray | The sampled trajectory for visualization. |
+| `eval_info` | mppi_eval_msgs/msg/MPPIEval | The evaluation information of the MPPI controller. |
 
 ## Node Parameters
+
+Parameters are declared on the controller node and configured under `ros__parameters`. Use dotted names with `ros2 param get`, for example `ros2 param get /mppi_h navigation.xy_goal_tolerance`.
 
 ### Common Parameters
 
 | Parameter name               | Type   | Description                                                  |
 | ---------------------------- | ------ | ------------------------------------------------------------ |
-| /mppi_h/navigation/xy_goal_tolerance | double | The tolerance [m] to judge that the goal is reached. |
-| /mppi_h/navigation/yaw_goal_tolerance | double | The tolerance [rad] to judge that the goal is reached. |
-| /mppi_h/target_system/d_l | double | The distance [m] from the center of the vehicle to the left wheel. |
-| /mppi_h/target_system/d_r | double | The distance [m] from the center of the vehicle to the right wheel. |
-| /mppi_h/target_system/l_f | double | The distance [m] from the center of the vehicle to the front axle. |
-| /mppi_h/target_system/l_r | double | The distance [m] from the center of the vehicle to the rear axle. |
-| /mppi_h/target_system/tire_radius | double | The radius [m] of the tire. |
-| /mppi_h/controller/common/control_interval | double | The control interval [s]. |
-| /mppi_h/controller/common/num_samples | int | The number of samples [samples]. |
-| /mppi_h/controller/common/prediction_horizon | int | The prediction horizon [steps]. |
-| /mppi_h/controller/common/step_len_sec | double | The step length [s] in the prediction horizon. |
-| /mppi_h/controller/mode1/param_exploration | double | The exploration parameter of MPPI. |
-| /mppi/mode_selector/yaw_error_threshold | double | The yaw error threshold [rad] to switch between MPPI-3D and MPPI-4D. |
-| /mppi/mode_selector/dist_error_threshold | double | The distance error threshold [m] to switch between MPPI-3D and MPPI-4D. |
+| `navigation.xy_goal_tolerance` | double | The tolerance [m] to judge that the goal is reached. |
+| `navigation.yaw_goal_tolerance` | double | The tolerance [rad] to judge that the goal is reached. |
+| `target_system.d_l` | double | The distance [m] from the center of the vehicle to the left wheel. |
+| `target_system.d_r` | double | The distance [m] from the center of the vehicle to the right wheel. |
+| `target_system.l_f` | double | The distance [m] from the center of the vehicle to the front axle. |
+| `target_system.l_r` | double | The distance [m] from the center of the vehicle to the rear axle. |
+| `target_system.tire_radius` | double | The radius [m] of the tire. |
+| `controller.common.control_interval` | double | The control interval [s]. |
+| `controller.mode1.num_samples`, `controller.mode2.num_samples` | int | The number of samples [samples]. |
+| `controller.common.prediction_horizon` | int | The prediction horizon [steps]. |
+| `controller.common.step_len_sec` | double | The step length [s] in the prediction horizon. |
+| `controller.mode1.param_exploration` | double | The exploration parameter of MPPI. |
+| `mode_selector.yaw_error_threshold` | double | The yaw error threshold [rad] to switch between MPPI-3D and MPPI-4D. |
+| `mode_selector.dist_error_threshold` | double | The distance error threshold [m] to switch between MPPI-3D and MPPI-4D. |
 
 ### Parameters of Mode 1 Controller (MPPI-3D)
 
 | Parameter name               | Type   | Description                                                  |
 | ---------------------------- | ------ | ------------------------------------------------------------ |
-| /mppi_h/controller/mode1/param_lambda | double | The lambda parameter of MPPI. |
-| /mppi_h/controller/mode1/param_alpha | double | The alpha parameter of MPPI. |
-| /mppi_h/controller/mode1/sigma | double[3] | The standard deviation of the noise for [vx, vy, omega]. |
-| /mppi_h/controller/mode1/reduce_computation | bool | If true, noise sampling is done only once and the same noise is used for all processes. |
-| /mppi_h/controller/mode1/weight_cmd_change | double[3] | The penalty weight for the variation of [vx, vy, omega]. |
-| /mppi_h/controller/mode1/weight_vehicle_cmd_change | double[8] | The penalty weight for the variation of [fl_steer, fr_steer, rl_steer, rr_steer, fl_vel, fr_vel, rl_vel, rr_vel]. |
-| /mppi_h/controller/mode1/reference_velocity | double | The reference velocity [m/s]. |
-| /mppi_h/controller/mode1/weight_velocity_error | double | The penalty weight for the velocity error. |
-| /mppi_h/controller/mode1/weight_angular_error | double | The penalty weight for the angular error. |
-| /mppi_h/controller/mode1/weight_collision_penalty | double | The penalty weight for the collision. |
-| /mppi_h/controller/mode1/weight_distance_error_penalty | double | The penalty weight for the distance error. |
-| /mppi_h/controller/mode1/weight_terminal_state_penalty | double | The penalty weight for the terminal state. |
-| /mppi_h/controller/mode1/use_sg_filter | bool | If true, Savitzky-Golay filter is used for smoothing the control input. |
-| /mppi_h/controller/mode1/sg_filter_half_window_size | int | The half window size of the Savitzky-Golay filter. |
-| /mppi_h/controller/mode1/sg_filter_poly_order | int | The polynomial order of the Savitzky-Golay filter. |
+| `controller.mode1.param_lambda` | double | The lambda parameter of MPPI. |
+| `controller.mode1.param_alpha` | double | The alpha parameter of MPPI. |
+| `controller.mode1.sigma` | double[3] | The standard deviation of the noise for [vx, vy, omega]. |
+| `controller.mode1.reduce_computation` | bool | If true, noise sampling is done only once and the same noise is used for all processes. |
+| `controller.mode1.weight_cmd_change` | double[3] | The penalty weight for the variation of [vx, vy, omega]. |
+| `controller.mode1.weight_vehicle_cmd_change` | double[8] | The penalty weight for the variation of [fl_steer, fr_steer, rl_steer, rr_steer, fl_vel, fr_vel, rl_vel, rr_vel]. |
+| `controller.mode1.reference_velocity` | double | The reference velocity [m/s]. |
+| `controller.mode1.weight_velocity_error` | double | The penalty weight for the velocity error. |
+| `controller.mode1.weight_angular_error` | double | The penalty weight for the angular error. |
+| `controller.mode1.weight_collision_penalty` | double | The penalty weight for the collision. |
+| `controller.mode1.weight_distance_error_penalty` | double | The penalty weight for the distance error. |
+| `controller.mode1.weight_terminal_state_penalty` | double | The penalty weight for the terminal state. |
+| `controller.mode1.use_sg_filter` | bool | If true, Savitzky-Golay filter is used for smoothing the control input. |
+| `controller.mode1.sg_filter_half_window_size` | int | The half window size of the Savitzky-Golay filter. |
+| `controller.mode1.sg_filter_poly_order` | int | The polynomial order of the Savitzky-Golay filter. |
 
 ### Parameters of Mode 2 Controller (MPPI-4D)
 
 | Parameter name               | Type   | Description                                                  |
 | ---------------------------- | ------ | ------------------------------------------------------------ |
-| /mppi_h/controller/mode2/param_lambda | double | The lambda parameter of MPPI. |
-| /mppi_h/controller/mode2/param_alpha | double | The alpha parameter of MPPI. |
-| /mppi_h/controller/mode2/sigma | double[4] | The standard deviation of the noise for [vx, vy, omega, steer]. |
-| /mppi_h/controller/mode2/reduce_computation | bool | If true, noise sampling is done only once and the same noise is used for all processes. |
-| /mppi_h/controller/mode2/weight_cmd_change | double[4] | The penalty weight for the variation of [vx, vy, omega, steer]. |
-| /mppi_h/controller/mode2/weight_vehicle_cmd_change | double[8] | The penalty weight for the variation of [fl_steer, fr_steer, rl_steer, rr_steer, fl_vel, fr_vel, rl_vel, rr_vel]. |
-| /mppi_h/controller/mode2/reference_velocity | double | The reference velocity [m/s]. |
-| /mppi_h/controller/mode2/weight_velocity_error | double | The penalty weight for the velocity error. |
-| /mppi_h/controller/mode2/weight_angular_error | double | The penalty weight for the angular error. |
-| /mppi_h/controller/mode2/weight_collision_penalty | double | The penalty weight for the collision. |
-| /mppi_h/controller/mode2/weight_distance_error_penalty | double | The penalty weight for the distance error. |
-| /mppi_h/controller/mode2/weight_terminal_state_penalty | double | The penalty weight for the terminal state. |
-| /mppi_h/controller/mode2/use_sg_filter | bool | If true, Savitzky-Golay filter is used for smoothing the control input. |
-| /mppi_h/controller/mode2/sg_filter_half_window_size | int | The half window size of the Savitzky-Golay filter. |
-| /mppi_h/controller/mode2/sg_filter_poly_order | int | The polynomial order of the Savitzky-Golay filter. |
+| `controller.mode2.param_lambda` | double | The lambda parameter of MPPI. |
+| `controller.mode2.param_alpha` | double | The alpha parameter of MPPI. |
+| `controller.mode2.sigma` | double[4] | The standard deviation of the noise for [fl_steer, rr_steer, fl_vel, rr_vel]. |
+| `controller.mode2.reduce_computation` | bool | If true, noise sampling is done only once and the same noise is used for all processes. |
+| `controller.mode2.weight_cmd_change` | double[4] | The penalty weight for the variation of [fl_steer, rr_steer, fl_vel, rr_vel]. |
+| `controller.mode2.weight_vehicle_cmd_change` | double[8] | The penalty weight for the variation of [fl_steer, fr_steer, rl_steer, rr_steer, fl_vel, fr_vel, rl_vel, rr_vel]. |
+| `controller.mode2.reference_velocity` | double | The reference velocity [m/s]. |
+| `controller.mode2.weight_velocity_error` | double | The penalty weight for the velocity error. |
+| `controller.mode2.weight_angular_error` | double | The penalty weight for the angular error. |
+| `controller.mode2.weight_collision_penalty` | double | The penalty weight for the collision. |
+| `controller.mode2.weight_distance_error_penalty` | double | The penalty weight for the distance error. |
+| `controller.mode2.weight_terminal_state_penalty` | double | The penalty weight for the terminal state. |
+| `controller.mode2.use_sg_filter` | bool | If true, Savitzky-Golay filter is used for smoothing the control input. |
+| `controller.mode2.sg_filter_half_window_size` | int | The half window size of the Savitzky-Golay filter. |
+| `controller.mode2.sg_filter_poly_order` | int | The polynomial order of the Savitzky-Golay filter. |
 
 ## Usage
 
@@ -95,13 +97,13 @@ To launch the node individually, run the following commands.
 
 For mppi_h node:
 ```
-source devel/setup.bash
-roslaunch mppi_h mppi_h.launch
+source install/setup.bash
+ros2 launch mppi_h mppi_h.launch.py
 ```
 
 ## Note
 
-`rostopic echo /mppi/eval_info` will show you the evaluation information of the MPPI controller in real-time.
+`ros2 topic echo /mppi/eval_info` will show you the evaluation information of the MPPI controller in real-time.
 An example output is shown below.
 
 ```

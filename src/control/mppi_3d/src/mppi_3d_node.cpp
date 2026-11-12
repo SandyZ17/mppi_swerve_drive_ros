@@ -2,8 +2,9 @@
 
 int main(int argc, char **argv)
 {
-    ros::init(argc, argv, "mppi_3d");
-    controller::MPPI mppi;
-    ros::spin();
+    rclcpp::init(argc, argv);
+    auto node = std::make_shared<controller::MPPI>();
+    rclcpp::spin(node);
+    rclcpp::shutdown();
     return 0;
-};
+}

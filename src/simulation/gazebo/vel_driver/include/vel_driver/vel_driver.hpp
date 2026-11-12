@@ -1,29 +1,26 @@
 #pragma once
-
-#include <ros/ros.h>
-#include <std_msgs/Float64.h>
-#include <geometry_msgs/Twist.h>
+#include <rclcpp/rclcpp.hpp>
+#include <rclcpp/create_timer.hpp>
+#include <geometry_msgs/msg/twist.hpp>
+#include <std_msgs/msg/float64_multi_array.hpp>
+#include <array>
+#include <chrono>
+#include <cmath>
 
 namespace gazebo
 {
-    class VelDriver
-    {
-        public:
-            VelDriver();
-            ~VelDriver();
-            void cmdVelCallback(const geometry_msgs::Twist::ConstPtr& msg);
-        private:
-            ros::NodeHandle nh_;
-            ros::NodeHandle private_nh_;
-            ros::Subscriber sub_cmd_vel_;
-
-            ros::Publisher pub_cmd_front_left_steer, pub_cmd_front_right_steer, pub_cmd_rear_left_steer, pub_cmd_rear_right_steer;
-            ros::Publisher pub_cmd_front_left_rotor, pub_cmd_front_right_rotor, pub_cmd_rear_left_rotor, pub_cmd_rear_right_rotor;
-            std_msgs::Float64 cmd_front_left_steer, cmd_front_right_steer, cmd_rear_left_steer, cmd_rear_right_steer;
-            std_msgs::Float64 cmd_front_left_rotor, cmd_front_right_rotor, cmd_rear_left_rotor, cmd_rear_right_rotor;
-
-            // vehicle parameters to be loaded from yaml file
-            float l_f, l_r, d_l, d_r;
-            float tire_radius;
-    };
+class VelDriver : public rclcpp::Node
+{
+public:
+    VelDriver();
+private:
+    void cmdVelCallback(geometry_msgs::msg::Twist::ConstSharedPtr msg);
+    void publishStop();
+    rclcpp::Subscription<geometry_msgs::msg::Twist>::SharedPtr sub_;
+    rclcpp::Publisher<std_msgs::msg::Float64MultiArray>::SharedPtr steering_pub_, wheel_pub_;
+    rclcpp::TimerBase::SharedPtr watchdog_;
+    rclcpp::Time last_command_{0, 0, RCL_ROS_TIME};
+    std::array<double, 4> steering_{};
+    double l_f_, l_r_, d_l_, d_r_, radius_, timeout_;
+};
 }

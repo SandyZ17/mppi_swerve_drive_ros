@@ -2,109 +2,62 @@
 
 namespace gazebo
 {
-
-// constructor
-VelDriver::VelDriver()
-    : nh_(""), private_nh_("~")
+VelDriver::VelDriver() : rclcpp::Node("vel_driver")
 {
-    // load parameters 
-
-    //// vehicle parameters
-    private_nh_.param<float>("l_f", l_f, 0.5);
-    private_nh_.param<float>("l_r", l_r, 0.5);
-    private_nh_.param<float>("d_l", d_l, 0.5);
-    private_nh_.param<float>("d_r", d_r, 0.5);
-    private_nh_.param<float>("tire_radius", tire_radius, 0.2);
-
-    //// subscribing topic names
-    std::string control_cmd_vel_topic;
-    private_nh_.param<std::string>("control_cmd_vel_topic", control_cmd_vel_topic, "/cmd_vel");
-
-    //// publishing topic names
-    std::string front_left_steer_cmd_topic, front_right_steer_cmd_topic, rear_left_steer_cmd_topic, rear_right_steer_cmd_topic;
-    std::string front_left_rotor_cmd_topic, front_right_rotor_cmd_topic, rear_left_rotor_cmd_topic, rear_right_rotor_cmd_topic;
-    private_nh_.param<std::string>("front_left_steer_cmd_topic", front_left_steer_cmd_topic, "/fwids/front_left_steer_rad/command");
-    private_nh_.param<std::string>("front_right_steer_cmd_topic", front_right_steer_cmd_topic, "/fwids/front_right_steer_rad/command");
-    private_nh_.param<std::string>("rear_left_steer_cmd_topic", rear_left_steer_cmd_topic, "/fwids/rear_left_steer_rad/command");
-    private_nh_.param<std::string>("rear_right_steer_cmd_topic", rear_right_steer_cmd_topic, "/fwids/rear_right_steer_rad/command");
-    private_nh_.param<std::string>("front_left_rotor_cmd_topic", front_left_rotor_cmd_topic, "/fwids/front_left_rotor_radpersec/command");
-    private_nh_.param<std::string>("front_right_rotor_cmd_topic", front_right_rotor_cmd_topic, "/fwids/front_right_rotor_radpersec/command");
-    private_nh_.param<std::string>("rear_left_rotor_cmd_topic", rear_left_rotor_cmd_topic, "/fwids/rear_left_rotor_radpersec/command");
-    private_nh_.param<std::string>("rear_right_rotor_cmd_topic", rear_right_rotor_cmd_topic, "/fwids/rear_right_rotor_radpersec/command");
-
-    // initialize subscribers
-    sub_cmd_vel_ = nh_.subscribe(control_cmd_vel_topic, 1, &VelDriver::cmdVelCallback, this);
-
-    // initialize publishers
-    pub_cmd_front_left_steer = nh_.advertise<std_msgs::Float64>(front_left_steer_cmd_topic, 10);
-    pub_cmd_front_right_steer = nh_.advertise<std_msgs::Float64>(front_right_steer_cmd_topic, 10);
-    pub_cmd_rear_left_steer = nh_.advertise<std_msgs::Float64>(rear_left_steer_cmd_topic, 10);
-    pub_cmd_rear_right_steer = nh_.advertise<std_msgs::Float64>(rear_right_steer_cmd_topic, 10);
-    pub_cmd_front_left_rotor = nh_.advertise<std_msgs::Float64>(front_left_rotor_cmd_topic, 10);
-    pub_cmd_front_right_rotor = nh_.advertise<std_msgs::Float64>(front_right_rotor_cmd_topic, 10);
-    pub_cmd_rear_left_rotor = nh_.advertise<std_msgs::Float64>(rear_left_rotor_cmd_topic, 10);
-    pub_cmd_rear_right_rotor = nh_.advertise<std_msgs::Float64>(rear_right_rotor_cmd_topic, 10);
+    l_f_ = declare_parameter("l_f", 0.5);
+    l_r_ = declare_parameter("l_r", 0.5);
+    d_l_ = declare_parameter("d_l", 0.5);
+    d_r_ = declare_parameter("d_r", 0.5);
+    radius_ = declare_parameter("tire_radius", 0.2);
+    timeout_ = declare_parameter("command_timeout", 0.5);
+    if (radius_ <= 0.0 || timeout_ <= 0.0) { throw std::invalid_argument("Invalid driver parameters"); }
+    steering_pub_ = create_publisher<std_msgs::msg::Float64MultiArray>(
+        declare_parameter("steering_topic", "/fwids/steering_controller/commands"), 10);
+    wheel_pub_ = create_publisher<std_msgs::msg::Float64MultiArray>(
+        declare_parameter("wheel_topic", "/fwids/wheel_controller/commands"), 10);
+    sub_ = create_subscription<geometry_msgs::msg::Twist>(
+        declare_parameter("control_cmd_vel_topic", "/cmd_vel"), 1,
+        std::bind(&VelDriver::cmdVelCallback, this, std::placeholders::_1));
+    watchdog_ = rclcpp::create_timer(this, get_clock(), std::chrono::milliseconds(100), [this]() {
+        if ((now() - last_command_).seconds() > timeout_) { publishStop(); }
+    });
 }
 
-// destructor
-VelDriver::~VelDriver()
+void VelDriver::publishStop()
 {
-    // No Contents
+    std_msgs::msg::Float64MultiArray wheels;
+    wheels.data.assign(4, 0.0);
+    wheel_pub_->publish(wheels);
 }
 
-// /cmd_vel topic callback
-void VelDriver::cmdVelCallback(const geometry_msgs::Twist::ConstPtr& msg)
+void VelDriver::cmdVelCallback(geometry_msgs::msg::Twist::ConstSharedPtr msg)
 {
-    // if msg contains NaN, return without publishing commands
-    if (std::isnan(msg->linear.x) || std::isnan(msg->linear.y) || std::isnan(msg->angular.z))
+    if (!std::isfinite(msg->linear.x) || !std::isfinite(msg->linear.y) || !std::isfinite(msg->angular.z))
     {
-        ROS_WARN("Received NaN in Twist Command. Skip this message.");
+        publishStop();
+        return;
     }
-
-    // parse received twist message
-    // Note : urdf model axis (forward : x, left : y) and vehicle local axis (right : x, forward : y) are different.
-    float v_r    = -msg->linear.y;  // velocity in the vehicle right direction
-    float v_f    =  msg->linear.x;  // velocity in the vehicle forward direction
-    float omega =  msg->angular.z; // angular velocity around the z-axis, counter-clockwise is positive
-
-    // [for debug] annouce received Twist message
-    ROS_DEBUG("Received Twist Command: v_right = %+5.1f, v_forward = %+5.1f, yaw_rate = %+5.1f", v_r, v_f, omega);
-
-    // convert from Vx, Vy, Omega to 8 DoF vehicle control commands
-    float vx_fl = v_r - omega * l_f;
-    float vx_fr = v_r - omega * l_f;
-    float vx_rl = v_r + omega * l_r;
-    float vx_rr = v_r + omega * l_r;
-
-    float vy_fl = v_f - omega * d_l;
-    float vy_fr = v_f + omega * d_r;
-    float vy_rl = v_f - omega * d_l;
-    float vy_rr = v_f + omega * d_r;
-
-    cmd_front_left_steer.data  = atan2(-vx_fl, vy_fl);
-    cmd_front_right_steer.data = atan2(-vx_fr, vy_fr);
-    cmd_rear_left_steer.data   = atan2(-vx_rl, vy_rl);
-    cmd_rear_right_steer.data  = atan2(-vx_rr, vy_rr);
-
-    cmd_front_left_rotor.data  = sqrt(vx_fl*vx_fl + vy_fl*vy_fl) / tire_radius; // [rad/s]
-    cmd_front_right_rotor.data = sqrt(vx_fr*vx_fr + vy_fr*vy_fr) / tire_radius; // [rad/s]
-    cmd_rear_left_rotor.data   = sqrt(vx_rl*vx_rl + vy_rl*vy_rl) / tire_radius; // [rad/s]
-    cmd_rear_right_rotor.data  = sqrt(vx_rr*vx_rr + vy_rr*vy_rr) / tire_radius; // [rad/s]
-
-    // [for debug] annouce publishing Twist message
-    ROS_DEBUG("FWIDS Steer Commands: FL_steer = %+5.1f, FR_steer = %+5.1f, RL_steer = %+5.1f, RR_steer = %+5.1f", cmd_front_left_steer.data, cmd_front_right_steer.data, cmd_rear_left_steer.data, cmd_rear_right_steer.data);
-    ROS_DEBUG("FWIDS Rotor Commands: FL_rotor = %+5.1f, FR_rotor = %+5.1f, RL_rotor = %+5.1f, RR_rotor = %+5.1f", cmd_front_left_rotor.data, cmd_front_right_rotor.data, cmd_rear_left_rotor.data, cmd_rear_right_rotor.data);
-
-    // publish 8 DoF vehicle commands to gazebo ros_control plugin
-    pub_cmd_front_left_steer.publish(cmd_front_left_steer);
-    pub_cmd_front_right_steer.publish(cmd_front_right_steer);
-    pub_cmd_rear_left_steer.publish(cmd_rear_left_steer);
-    pub_cmd_rear_right_steer.publish(cmd_rear_right_steer);
-
-    pub_cmd_front_left_rotor.publish(cmd_front_left_rotor);
-    pub_cmd_front_right_rotor.publish(cmd_front_right_rotor);
-    pub_cmd_rear_left_rotor.publish(cmd_rear_left_rotor);
-    pub_cmd_rear_right_rotor.publish(cmd_rear_right_rotor);
+    last_command_ = now();
+    const std::array<double, 4> x{l_f_, l_f_, -l_r_, -l_r_};
+    const std::array<double, 4> y{d_l_, -d_r_, d_l_, -d_r_};
+    std_msgs::msg::Float64MultiArray angles, wheels;
+    for (size_t i = 0; i < 4; ++i)
+    {
+        const double vx = msg->linear.x - msg->angular.z * y[i];
+        const double vy = msg->linear.y + msg->angular.z * x[i];
+        double speed = std::hypot(vx, vy) / radius_;
+        if (speed > 1e-6)
+        {
+            double angle = std::atan2(vy, vx);
+            // Equivalent reverse wheel motion avoids rotating steering through pi.
+            if (angle > M_PI_2) { angle -= M_PI; speed = -speed; }
+            else if (angle < -M_PI_2) { angle += M_PI; speed = -speed; }
+            steering_[i] = angle;
+        }
+        angles.data.push_back(steering_[i]);
+        wheels.data.push_back(speed);
+    }
+    steering_pub_->publish(angles);
+    wheel_pub_->publish(wheels);
 }
-
-} // namespace gazebo
+}

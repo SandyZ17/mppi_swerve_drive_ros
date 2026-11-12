@@ -1,100 +1,75 @@
-# Setting up development environment on docker
+# ROS 2 Humble in Docker
 
-## Prerequisites
-- any os that supports docker (following settings was tested on ubuntu 20.04)
-- [docker](https://docs.docker.com/engine/install/ubuntu/)
-- [rocker](https://github.com/osrf/rocker)
+Use Docker Engine with Compose v2 on a Linux host. The image contains Ubuntu 22.04, Humble, Gazebo Classic 11, Nav2, grid_map, ros2_control, RViz2, and build dependencies. ROS does not need to be installed on the host.
 
-## First time setup
-1. clone the project repository.
-    ```
-    cd <path to your workspace>
-    git clone https://github.com/MizuhoAOKI/mppi_swerve_drive_ros
-    ```
-1. build the docker image.   
-   make sure to connect to the internet because dependent packages will be downloaded.
-    ```
-    cd <path to your workspace>/mppi_swerve_drive_ros
-    docker build -t noetic_image -f docker/Dockerfile . --no-cache
-    ```
-1. check if the docker image is successfully built.  
-    you should see `noetic_image` in the list.
-    ```
-    $ docker images
-    REPOSITORY     TAG       IMAGE ID       CREATED        SIZE
-    noetic_image   latest    da8d5c24afd6   11 hours ago   3.52GB
-    ```
-1. run the docker container and get into the bash inside.   
-   rocker enables you to use GUI applications (ex. rviz, gazebo) and usb devices (ex. joypad) on the docker container.
-    ```
-    cd <path to your workspace>/mppi_swerve_drive_ros
-    rocker --x11 --user --network host --privileged --nocleanup --volume .:/home/$USER/mppi_swerve_drive_ros --name noetic_container noetic_image:latest
-    ```
-    - shortcut of the command above:
-        ```
-        cd <path to your workspace>/mppi_swerve_drive_ros
-        make drock
-        ```
-1. [inside the docker container] clean the cache.
-    ```
-    cd ~/mppi_swerve_drive_ros
-    make clean
-    ```
-1. [inside the docker container] build the project.
-    ```
-    cd ~/mppi_swerve_drive_ros
-    make build
-    ```
+## Build and run
 
-## [After the first time setup] Use the running container
-1. the command `rocker --x11 ...` above started a docker container named `noetic_container`.  
-    check if noetic_container is running.   
-   if it is running currently, you should see `noetic_container` in the list.  
-   "STATUS" saying "Up" means the container is running now.
-    ```
-    $ docker ps -a
-    CONTAINER ID   IMAGE          COMMAND                  CREATED         STATUS         PORTS     NAMES
-    13f765669c57   655f16d731bd   "/ros_entrypoint.sh …"   4 seconds ago   Up 3 seconds             noetic_container
-    ```
-1. get into the bash inside the running container.
-    ```
-    docker exec -it noetic_container /bin/bash
-    ```
-    - shortcut of the command above:
-        ```
-        cd <path to your workspace>/mppi_swerve_drive_ros
-        make dexec
-        ```
-1. [inside the docker container] exit the container.
-    this command just exits from the bash inside the container and returns to the host terminal, but the container itself remains running.
-    ```
-    exit
-    ```
+From the repository root:
 
+```bash
+make setup_docker
+make build
+make navigation GUI=false RVIZ=false
+```
 
-## Other commands
--  stop the container.
-    ```
-    docker stop noetic_container
-    ```
--  restart the container.
-    ```
-    docker start noetic_container
-    ```
-    use this command when you run `docker exec ...` but the output saids `<the target container> is not running`.
--  clean up.
-    1. remove the container.
-        ```
-        docker rm noetic_container
-        ```
-    1. remove the image.
-        ```
-        docker rmi noetic_image:latest
-        ```
+`make` exports your host UID/GID to Compose. The image creates a matching user, and `/ws` is a bind mount of the repository. Files written by builds remain editable on the host. The dependency image is reusable; C++ changes require `make build`, not an image rebuild.
 
+To use Compose directly, export these first:
 
-## Note
-On the docker environment above, you cannot access to GPU devices.
-It is because this project does not heavily depend on GPU devices. 
-If you need to use GPU devices, please tell us by creating an issue or a pull request.
+```bash
+export LOCAL_UID=$(id -u)
+export LOCAL_GID=$(id -g)
+docker compose build dev
+docker compose run --rm dev bash
+```
 
+The entrypoint sources `/opt/ros/humble/setup.bash` and `/ws/install/setup.bash` when present. An already-open shell needs `source install/setup.bash` after its first manual build. Set `ROS_DOMAIN_ID` consistently across terminals if running several ROS projects on the same host.
+
+## GUI
+
+For an available X11/XWayland display:
+
+```bash
+xhost +si:localuser:$(id -un)
+make navigation
+xhost -si:localuser:$(id -un)  # Revoke when finished
+```
+
+Compose passes `DISPLAY` and the X11 socket. On a remote server without a display, use `GUI=false RVIZ=false`. Software OpenGL rendering is the default. GPU passthrough is environment-specific and is not needed for the controller or headless simulation.
+
+## Goals, checks, and stopping
+
+```bash
+make run_docker
+# In the container:
+ros2 topic pub --once /goal_pose geometry_msgs/msg/PoseStamped \
+  '{header: {frame_id: map}, pose: {position: {x: 2.5, y: 0.0}, orientation: {w: 1.0}}}'
+ros2 topic echo /mppi/eval_info
+ros2 control list_controllers -c /fwids/controller_manager
+ros2 topic pub --once /stop_navigation std_msgs/msg/Empty '{}'
+```
+
+Ctrl+C shuts down launch and its child processes. There is no global `killall` handler. `make test` runs automated checks; `make smoke_test` checks a running default navigation launch.
+
+## Optional joystick and bags
+
+Pass the device explicitly when using a joystick:
+
+```bash
+export LOCAL_UID=$(id -u) LOCAL_GID=$(id -g)
+docker compose run --rm --device /dev/input:/dev/input dev \
+  ros2 launch mppi_bringup gazebo_world.launch.py use_joystick:=true
+```
+
+The container user also needs the device's group permissions; add the corresponding numeric GID with Compose `group_add` if necessary. Autonomous navigation disables joystick commands.
+
+`ros2 bag record` writes to the bind mount if you choose a `/ws/...` output path. Play ROS 2 bags with `ros2 bag play <directory> --clock`; ROS 1 `.bag` files require separate conversion.
+
+## Troubleshooting
+
+- Docker socket permission errors: configure Docker access for your Linux user before running Make targets.
+- `Package ... not found`: run `make build` and open a new `make run_docker` shell.
+- Missing wheel controllers: inspect launch output and `ros2 control list_controllers -c /fwids/controller_manager`.
+- DDS discovery: containers use host networking and host IPC. Keep `ROS_DOMAIN_ID` and ROS middleware consistent.
+- Build memory pressure: use `make build JOBS=1`. `OMP_NUM_THREADS` controls runtime solver parallelism, not build parallelism.
+- Old catkin artifacts: remove the old `devel/`, `build/`, and `.catkin_tools/` before the first ROS 2 build; do not source a Noetic overlay.

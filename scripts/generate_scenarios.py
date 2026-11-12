@@ -4,7 +4,6 @@ import os
 import sys
 import time
 import yaml
-import rospkg
 import subprocess
 import argparse
 import datetime

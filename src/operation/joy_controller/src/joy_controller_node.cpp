@@ -2,8 +2,9 @@
 
 int main(int argc, char **argv)
 {
-    ros::init(argc, argv, "joy_controller");
-    operation::JoyController joy_controller;
-    ros::spin();
+    rclcpp::init(argc, argv);
+    auto node = std::make_shared<operation::JoyController>();
+    rclcpp::spin(node);
+    rclcpp::shutdown();
     return 0;
-};
+}

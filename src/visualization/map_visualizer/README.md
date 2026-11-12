@@ -9,7 +9,7 @@ None.
 
 | Topic name      | Type              | Description                                                  |
 | --------------- | ----------------- | ------------------------------------------------------------ |
-| /rviz_3dmap | visualization_msgs/MarkerArray | 3D map for visualization. |
+| /rviz_3dmap | visualization_msgs/msg/MarkerArray | 3D map for visualization. |
 
 ## Map Types
 

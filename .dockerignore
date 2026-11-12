@@ -1,0 +1,14 @@
+.git
+.agents
+.codex
+.aws
+build
+install
+log
+logs
+devel
+rosbag
+result
+media
+__pycache__
+.pytest_cache
